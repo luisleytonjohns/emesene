@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>eMeSeNe</title>
 <meta name="description" content="El chat de la familia y los amigos. Con zumbidos y todo.">
 <meta name="theme-color" content="#C9DDEE">
@@ -111,6 +111,15 @@
 
       <p id="ingreso-error" class="mensaje-error" role="alert"></p>
       <p id="ingreso-ok" class="mensaje-ok" role="status"></p>
+
+      <div class="instalar-caja">
+        <p class="instalar-titulo"><svg aria-hidden="true"><use href="#i-instalar"/></svg> Instala eMeSeNe en tu equipo</p>
+        <div class="instalar-botones">
+          <button type="button" class="boton-blanco" data-instalar="android">Android</button>
+          <button type="button" class="boton-blanco" data-instalar="pc">PC</button>
+          <button type="button" class="boton-blanco" data-instalar="iphone">iPhone</button>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -177,8 +186,11 @@
       </div>
 
       <div id="aviso-ios" class="aviso-suave" hidden>
-        <span>Para instalar eMeSeNe en tu iPhone: toca Compartir en Safari y luego "Agregar a pantalla de inicio".</span>
-        <button type="button" id="cerrar-aviso-ios" class="enlace">Entendido</button>
+        <span>En el iPhone, eMeSeNe funciona mejor instalada en la pantalla de inicio.</span>
+        <span>
+          <button type="button" id="ver-instalar-ios" class="enlace">Ver cómo instalarla</button>
+          <button type="button" id="cerrar-aviso-ios" class="enlace">Ahora no</button>
+        </span>
       </div>
 
       <div id="solicitudes"></div>
@@ -238,7 +250,7 @@
 
             <form id="form-mensaje" class="redactor">
               <label for="texto" class="solo-lector">Escribe un mensaje</label>
-              <textarea id="texto" rows="2" maxlength="4000" placeholder="Escribe un mensaje..."></textarea>
+              <textarea id="texto" rows="2" maxlength="4000" placeholder="Escribe un mensaje..." enterkeyhint="send" autocomplete="off"></textarea>
               <button type="submit" class="boton-azul enviar">Enviar</button>
             </form>
           </div>
@@ -317,6 +329,23 @@
       <div id="lista-codigos"></div>
     </div>
     <div id="admin-usuarios" class="admin-panel" hidden></div>
+  </div>
+</dialog>
+
+<!-- Cómo instalar -->
+<dialog id="dlg-instalar" class="dialogo">
+  <div class="formulario">
+    <h2>Instalar eMeSeNe</h2>
+    <div class="pestanas" role="tablist">
+      <button type="button" class="pestana" data-plataforma="android" role="tab">Android</button>
+      <button type="button" class="pestana" data-plataforma="pc" role="tab">PC</button>
+      <button type="button" class="pestana" data-plataforma="iphone" role="tab">iPhone</button>
+    </div>
+    <div id="instalar-pasos" class="instalar-pasos"></div>
+    <button type="button" id="instalar-ahora" class="boton-principal" hidden>Instalar ahora</button>
+    <div class="botonera">
+      <button type="button" class="boton-blanco" data-cerrar>Cerrar</button>
+    </div>
   </div>
 </dialog>
 
