@@ -319,6 +319,16 @@ svg { flex: none; }
 .fila-form input { flex: 1 1 220px; min-height: 40px; border: 1px solid var(--borde-suave); border-radius: 5px; padding: 0 10px; }
 .admin-vacio { color: var(--gris); padding: 14px 0; }
 
+/* ---------- Instalar ---------- */
+.instalar-caja { width: 100%; margin-top: 10px; padding-top: 14px; border-top: 1px solid var(--linea); display: flex; flex-direction: column; gap: 8px; }
+.instalar-titulo { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--gris); }
+.instalar-titulo svg { width: 16px; height: 16px; color: var(--azul); }
+.instalar-botones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.instalar-pasos ol { margin: 12px 0 4px; padding-left: 22px; line-height: 1.55; }
+.instalar-pasos li { margin-bottom: 8px; }
+.boton-blanco.peligro { color: #A12A22; border-color: #E2B5B0; }
+.boton-blanco.peligro:hover { background: #FBEDEB; }
+
 /* ---------- Visor y avisos ---------- */
 .visor {
   position: fixed; inset: 0; z-index: 50; background: rgba(10, 20, 30, .85);
@@ -336,6 +346,8 @@ svg { flex: none; }
 }
 .toast-texto { flex: 1; min-width: 0; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
 .toast-texto small { display: block; color: var(--gris); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 820px) { .toast { animation-name: bajar; } }
+@keyframes bajar { from { transform: translateY(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes subir { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ---------- Celular ---------- */
@@ -358,6 +370,6 @@ svg { flex: none; }
   #pantalla-ingreso, #pantalla-espera { padding: 0; align-items: stretch; }
   .ventana-ingreso { max-width: none; border: 0; border-radius: 0; box-shadow: none; min-height: var(--alto); }
   .ingreso-cuerpo { padding: 24px 20px; }
-  .toasts { right: 8px; left: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); width: auto; }
+  .toasts { right: 8px; left: 8px; bottom: auto; top: calc(8px + env(safe-area-inset-top)); width: auto; }
   .panel-emo { grid-template-columns: repeat(5, 44px); }
 }
