@@ -11,4 +11,4 @@ export const firebaseConfig = {
 };
 
 // Versión de la app (se muestra en el pie y fuerza la actualización del caché)
-export const VERSION = "1.1.1";
+export const VERSION = "1.1.2";

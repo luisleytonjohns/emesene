@@ -111,7 +111,7 @@ function traducirError(e) {
     'permission-denied': 'No tienes permiso para hacer eso.',
     'unavailable': 'No hay conexión con el servidor. Revisa tu internet.'
   };
-  return mapa[c] || (typeof e === 'string' ? e : 'Ocurrió un error. Vuelve a intentarlo.');
+  return mapa[c] || (typeof e === 'string' ? e : 'Ocurrió un error. Vuelve a intentarlo.' + (c ? ` (${c})` : ''));
 }
 
 function leerArchivoComoDataURL(blob) {
@@ -348,9 +348,24 @@ $('#form-entrar').addEventListener('submit', async (ev) => {
   $('#ingreso-error').textContent = ''; $('#ingreso-ok').textContent = '';
   if (!correo || !clave) { $('#ingreso-error').textContent = 'Escribe tu correo y tu contraseña.'; return; }
   sessionStorage.setItem('estadoInicial', $('#entrar-estado').value);
+  const boton = $('#form-entrar .boton-principal');
+  boton.disabled = true; boton.textContent = 'Entrando...';
   try { await signInWithEmailAndPassword(auth, correo, clave); }
-  catch (e) { $('#ingreso-error').textContent = traducirError(e); }
+  catch (e) {
+    console.error(e);
+    let texto = traducirError(e);
+    if (['auth/invalid-credential', 'auth/user-not-found', 'auth/wrong-password'].includes(e.code)) {
+      texto += ' Si te enviaron un código de invitación nuevo, usa la pestaña "Crear cuenta".';
+    }
+    mostrarErrorIngreso(texto);
+  } finally { boton.disabled = false; boton.textContent = 'Iniciar sesión'; }
 });
+
+function mostrarErrorIngreso(texto) {
+  const err = $('#ingreso-error');
+  err.textContent = texto;
+  err.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 
 $('#btn-olvide').addEventListener('click', async () => {
   const correo = $('#entrar-correo').value.trim();
@@ -375,14 +390,18 @@ $('#form-crear').addEventListener('submit', async (ev) => {
   if (clave.length < 6) { err.textContent = 'La contraseña debe tener al menos 6 caracteres.'; return; }
   if (clave !== clave2) { err.textContent = 'Las contraseñas no coinciden.'; return; }
   registrando = true;
+  const boton = $('#form-crear .boton-principal');
+  boton.disabled = true; boton.textContent = 'Creando tu cuenta...';
   try {
     const cred = await createUserWithEmailAndPassword(auth, correo, clave);
     const ok = await crearPerfil(cred.user, nick, codigo || null);
     if (codigo && !ok) aviso('El código no es válido o ya fue usado. Tu cuenta quedó en espera de aprobación.');
   } catch (e) {
-    err.textContent = traducirError(e);
+    console.error(e);
+    mostrarErrorIngreso(traducirError(e));
   } finally {
     registrando = false;
+    boton.disabled = false; boton.textContent = 'Crear cuenta';
   }
 });
 
