@@ -99,7 +99,7 @@ svg { flex: none; }
 .formulario .boton-principal { margin-top: 12px; }
 .codigo { text-transform: uppercase; letter-spacing: 3px; font-family: Consolas, "Courier New", monospace; }
 .ayuda { font-size: 12px; color: var(--gris); margin: 4px 0 0; line-height: 1.4; }
-.mensaje-error { color: #A12A22; font-size: 13px; min-height: 1em; margin: 8px 0 0; }
+.mensaje-error { color: #A12A22; font-size: 14px; min-height: 1em; margin: 8px 0 0; padding: 8px 10px; background: #FBEDEB; border: 1px solid #E2B5B0; border-radius: 5px; line-height: 1.4; }
 .mensaje-ok { color: #24713C; font-size: 13px; margin: 4px 0 0; }
 .mensaje-error:empty, .mensaje-ok:empty { display: none; }
 
@@ -351,8 +351,15 @@ svg { flex: none; }
 @keyframes subir { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ---------- Celular ---------- */
+/* En iPhone, una letra menor a 16 px hace que la pantalla se agrande al tocar un cuadro */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea { font-size: 16px !important; }
+}
+.boton-principal:disabled { opacity: .7; cursor: wait; }
+
 @media (max-width: 820px) {
   body { background: var(--fondo-ventana); }
+  input, select, textarea { font-size: 16px; }
   .escritorio { padding: 0; gap: 0; }
   .ventana-contactos, .ventana-chat {
     width: 100%; max-width: none; border: 0; border-radius: 0; box-shadow: none;
