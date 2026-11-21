@@ -292,6 +292,7 @@ onAuthStateChanged(auth, (u) => {
       return;
     }
     miPerfil = snap.data();
+    if (miPerfil.deleted) { detenerPrincipal(); mostrarEspera('eliminada'); return; }
     if (miPerfil.suspended) { detenerPrincipal(); mostrarEspera('suspendida'); return; }
     if (!miPerfil.approved) { detenerPrincipal(); mostrarEspera(miPerfil.rejected ? 'rechazada' : 'pendiente'); return; }
     if (!principalIniciado) iniciarPrincipal();
@@ -383,11 +384,12 @@ function mostrarEspera(tipo) {
   const titulos = {
     pendiente: ['Tu cuenta está pendiente de aprobación', 'El administrador revisará tu solicitud. Cuando te apruebe, esta pantalla se actualizará sola.'],
     rechazada: ['Tu solicitud no fue aprobada', 'Si crees que es un error, habla con quien te invitó. Si te dio un código, puedes usarlo aquí abajo.'],
-    suspendida: ['Tu cuenta está suspendida', 'Habla con el administrador si necesitas volver a usar eMeSeNe.']
+    suspendida: ['Tu cuenta está suspendida', 'Habla con el administrador si necesitas volver a usar eMeSeNe.'],
+    eliminada: ['Tu cuenta fue eliminada', 'Si crees que es un error, habla con el administrador.']
   };
   $('#espera-titulo').textContent = titulos[tipo][0];
   $('#espera-texto').textContent = titulos[tipo][1];
-  $('#form-codigo').hidden = tipo === 'suspendida';
+  $('#form-codigo').hidden = tipo === 'suspendida' || tipo === 'eliminada';
   $('#espera-error').textContent = '';
   mostrar('pantalla-espera');
 }
@@ -766,7 +768,7 @@ $('#form-agregar').addEventListener('submit', async (ev) => {
   try {
     if (correo === (yo.email || '').toLowerCase()) throw 'Ese es tu propio correo.';
     const s = await getDocs(query(collection(fs, 'users'), where('emailLower', '==', correo), limit(1)));
-    if (s.empty || !s.docs[0].data().approved) throw 'No encontramos a nadie con ese correo en eMeSeNe. Pídele que cree su cuenta primero.';
+    if (s.empty || !s.docs[0].data().approved || s.docs[0].data().suspended) throw 'No encontramos a nadie con ese correo en eMeSeNe. Pídele que cree su cuenta primero.';
     const otro = s.docs[0];
     const nick = otro.data().nick;
     if (contactos.has(otro.id)) throw `${nick} ya está en tus contactos.`;
@@ -935,6 +937,11 @@ $('#form-mensaje').addEventListener('submit', async (ev) => {
   catch { $('#texto').value = t; }
 });
 
+// Al abrir el teclado en el celular, mantener visibles los últimos mensajes
+$('#texto').addEventListener('focus', () => {
+  setTimeout(() => { const c = $('#mensajes'); c.scrollTop = c.scrollHeight; }, 350);
+});
+
 $('#texto').addEventListener('keydown', (ev) => {
   if (ev.key === 'Enter' && !ev.shiftKey && !tactil()) {
     ev.preventDefault();
@@ -1088,7 +1095,7 @@ function escucharPendientes() {
       });
     }
     primera = false;
-    pendientesAdmin = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    pendientesAdmin = s.docs.map((d) => ({ id: d.id, ...d.data() })).filter((p) => !p.deleted);
     const n = pendientesAdmin.filter((p) => !p.rejected).length;
     $('#admin-cuenta').textContent = String(n);
     $('#admin-cuenta').hidden = !n;
@@ -1200,12 +1207,40 @@ function pintarCodigos(docs) {
   }));
 }
 
+async function restablecerClave(u) {
+  if (!confirm(`¿Enviar a ${u.nick} un correo para crear una contraseña nueva?\n\nLe llegará a ${u.email}. La contraseña actual sigue sirviendo hasta que la cambie.`)) return;
+  try {
+    await sendPasswordResetEmail(auth, u.email);
+    aviso(`Listo, le enviamos el correo a ${u.email}. Dile que revise también la carpeta de spam.`);
+  } catch (e) { aviso(traducirError(e)); }
+}
+
+async function eliminarUsuario(u) {
+  if (!confirm(`¿Eliminar a ${u.nick} (${u.email})?\n\nSe quitará de los contactos de todos y no podrá volver a entrar. Sus mensajes antiguos se conservan.`)) return;
+  try {
+    const b = writeBatch(fs);
+    const rels = await getDocs(collection(fs, 'users', u.id, 'contacts'));
+    rels.forEach((r) => { b.delete(r.ref); b.delete(doc(fs, 'users', r.id, 'contacts', u.id)); });
+    const enviadas = await getDocs(query(collection(fs, 'requests'), where('from', '==', u.id)));
+    const recibidas = await getDocs(query(collection(fs, 'requests'), where('to', '==', u.id)));
+    enviadas.forEach((d) => b.delete(d.ref));
+    recibidas.forEach((d) => b.delete(d.ref));
+    b.update(doc(fs, 'users', u.id), { suspended: true, deleted: true, admin: false });
+    await b.commit();
+    aviso(`${u.nick} fue eliminado.`);
+  } catch (e) { console.error(e); aviso(traducirError(e)); }
+}
+
 function pintarUsuarios(docs) {
   const cont = $('#admin-usuarios');
-  const usuarios = docs.map((d) => ({ id: d.id, ...d.data() })).filter((u) => u.approved)
+  const todos = docs.map((d) => ({ id: d.id, ...d.data() }));
+  const usuarios = todos.filter((u) => u.approved && !u.deleted)
     .sort((a, b) => (a.nick || '').localeCompare(b.nick || '', 'es'));
-  if (!usuarios.length) { cont.replaceChildren(el('p', { class: 'admin-vacio' }, 'No hay usuarios aprobados.')); return; }
-  cont.replaceChildren(...usuarios.map((u) => {
+  const eliminados = todos.filter((u) => u.deleted);
+  const nodos = [el('p', { class: 'ayuda', style: 'margin:0 0 6px' },
+    'Por seguridad, nadie puede ver ni escribir la contraseña de otra persona. "Restablecer clave" le envía un correo para que cree una nueva.')];
+  if (!usuarios.length) nodos.push(el('p', { class: 'admin-vacio' }, 'No hay usuarios aprobados.'));
+  nodos.push(...usuarios.map((u) => {
     const soyYo = u.id === yo.uid;
     return el('div', { class: 'fila-admin' },
       avatar(u, 40, null),
@@ -1213,6 +1248,7 @@ function pintarUsuarios(docs) {
         el('b', {}, u.nick), u.admin ? el('span', { class: 'etiqueta-chip' }, 'Admin') : null,
         u.suspended ? el('span', { class: 'etiqueta-chip alerta' }, 'Suspendido') : null,
         el('br'), el('small', {}, `${u.email} · desde ${fechaCorta(u.createdAt)}`)),
+      el('button', { type: 'button', class: 'boton-blanco', onclick: () => restablecerClave(u) }, 'Restablecer clave'),
       soyYo ? null : el('button', {
         type: 'button', class: 'boton-blanco',
         onclick: () => { if (u.suspended || confirm(`¿Suspender a ${u.nick}? No podrá usar eMeSeNe hasta que lo reactives.`)) accionAdmin(updateDoc(doc(fs, 'users', u.id), { suspended: !u.suspended })); }
@@ -1220,39 +1256,97 @@ function pintarUsuarios(docs) {
       soyYo ? null : el('button', {
         type: 'button', class: 'boton-blanco',
         onclick: () => { if (confirm(u.admin ? `¿Quitar los permisos de administrador a ${u.nick}?` : `¿Dar permisos de administrador a ${u.nick}? Podrá aprobar cuentas, generar códigos y suspender usuarios.`)) accionAdmin(updateDoc(doc(fs, 'users', u.id), { admin: !u.admin })); }
-      }, u.admin ? 'Quitar admin' : 'Hacer admin'));
+      }, u.admin ? 'Quitar admin' : 'Hacer admin'),
+      soyYo ? null : el('button', { type: 'button', class: 'boton-blanco peligro', onclick: () => eliminarUsuario(u) }, 'Eliminar'));
   }));
+  if (eliminados.length) {
+    nodos.push(el('h3', { style: 'font-size:14px;margin:18px 0 0;color:var(--gris)' }, 'Eliminados'));
+    nodos.push(...eliminados.map((u) => el('div', { class: 'fila-admin' },
+      avatar(u, 40, null),
+      el('div', { class: 'datos' }, el('b', {}, u.nick), el('br'), el('small', {}, u.email)),
+      el('button', {
+        type: 'button', class: 'boton-blanco',
+        onclick: () => { if (confirm(`¿Restaurar la cuenta de ${u.nick}? Podrá volver a entrar, pero tendrá que agregar de nuevo a sus contactos.`)) accionAdmin(updateDoc(doc(fs, 'users', u.id), { suspended: false, deleted: false })); }
+      }, 'Restaurar'))));
+  }
+  cont.replaceChildren(...nodos);
 }
 
 /* =========================================================
    Instalación (PWA)
    ========================================================= */
 let eventoInstalar = null;
+const esIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const esAndroid = () => /android/i.test(navigator.userAgent);
+const instalada = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+const plataformaActual = () => (esIos() ? 'iphone' : esAndroid() ? 'android' : 'pc');
+
+const PASOS = {
+  android: [
+    'Abre <b>luisleytonjohns.github.io/emesene</b> en <b>Chrome</b>.',
+    'Si aparece el aviso <b>Instalar</b> abajo, tócalo. Si no, toca los <b>tres puntos</b> arriba a la derecha.',
+    'Elige <b>Instalar app</b> o <b>Agregar a la pantalla principal</b>.',
+    'Confirma con <b>Instalar</b>. El ícono de eMeSeNe quedará junto a tus otras apps.'
+  ],
+  pc: [
+    'Abre <b>luisleytonjohns.github.io/emesene</b> en <b>Chrome</b> o <b>Edge</b>.',
+    'Haz clic en el ícono de <b>instalar</b> que aparece al final de la barra de direcciones (una pantalla con una flecha).',
+    'Si no lo ves, abre el menú de los <b>tres puntos</b> y busca <b>Instalar eMeSeNe</b>. En Chrome puede estar dentro de <b>Transmitir, guardar y compartir</b>.',
+    'Para que se abra sola al prender el computador: escribe <b>chrome://apps</b> en la barra, haz clic derecho sobre eMeSeNe y marca <b>Abrir al iniciar sesión</b>.'
+  ],
+  iphone: [
+    'Abre <b>luisleytonjohns.github.io/emesene</b> en <b>Safari</b>.',
+    'Toca el botón <b>Compartir</b> (el cuadrado con una flecha hacia arriba).',
+    'Baja en la lista y toca <b>Agregar a pantalla de inicio</b>.',
+    'Toca <b>Agregar</b>. Desde ahora abre eMeSeNe con ese ícono; así también funcionarán los avisos cuando los activemos.'
+  ]
+};
+
+function mostrarPlataforma(nombre) {
+  $$('[data-plataforma]').forEach((b) => b.classList.toggle('activa', b.dataset.plataforma === nombre));
+  const lista = el('ol', {});
+  PASOS[nombre].forEach((p) => { const li = el('li'); li.innerHTML = p; lista.append(li); });
+  $('#instalar-pasos').replaceChildren(lista);
+  $('#instalar-ahora').hidden = !(eventoInstalar && nombre === plataformaActual());
+}
+
+function abrirInstalar(nombre) {
+  if (instalada()) { aviso('eMeSeNe ya está instalada en este equipo.'); }
+  mostrarPlataforma(nombre || plataformaActual());
+  $('#dlg-instalar').showModal();
+}
+
+$$('[data-instalar]').forEach((b) => b.addEventListener('click', () => abrirInstalar(b.dataset.instalar)));
+$$('[data-plataforma]').forEach((b) => b.addEventListener('click', () => mostrarPlataforma(b.dataset.plataforma)));
+$('#btn-instalar').hidden = instalada();
+$('#btn-instalar').addEventListener('click', () => abrirInstalar());
+
 window.addEventListener('beforeinstallprompt', (ev) => {
   ev.preventDefault();
   eventoInstalar = ev;
-  $('#btn-instalar').hidden = false;
 });
-$('#btn-instalar').addEventListener('click', async () => {
+$('#instalar-ahora').addEventListener('click', async () => {
   if (!eventoInstalar) return;
   eventoInstalar.prompt();
   await eventoInstalar.userChoice.catch(() => {});
   eventoInstalar = null;
-  $('#btn-instalar').hidden = true;
+  $('#dlg-instalar').close();
 });
-window.addEventListener('appinstalled', () => { $('#btn-instalar').hidden = true; });
+window.addEventListener('appinstalled', () => {
+  $('#btn-instalar').hidden = true;
+  eventoInstalar = null;
+});
 
 function mostrarAvisoIos() {
-  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const instalada = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
   let visto = false;
   try { visto = localStorage.getItem('avisoIos') === '1'; } catch {}
-  $('#aviso-ios').hidden = !(ios && !instalada && !visto);
+  $('#aviso-ios').hidden = !(esIos() && !instalada() && !visto);
 }
 $('#cerrar-aviso-ios').addEventListener('click', () => {
   $('#aviso-ios').hidden = true;
   try { localStorage.setItem('avisoIos', '1'); } catch {}
 });
+$('#ver-instalar-ios').addEventListener('click', () => abrirInstalar('iphone'));
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
