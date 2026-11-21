@@ -285,6 +285,8 @@ onAuthStateChanged(auth, (u) => {
   mostrar('cargando');
   desuscribirPerfil = onSnapshot(doc(fs, 'users', u.uid), async (snap) => {
     if (!snap.exists()) {
+      // Sin respuesta del servidor no se sabe si el perfil existe: esperar, nunca crear uno a ciegas
+      if (snap.metadata.fromCache) { mostrar('cargando'); return; }
       if (!registrando) {
         try { await crearPerfil(u, nickDesdeCorreo(u.email), null); }
         catch (e) { console.error(e); aviso('No se pudo crear tu perfil. Recarga la página.'); }
@@ -297,7 +299,11 @@ onAuthStateChanged(auth, (u) => {
     if (!miPerfil.approved) { detenerPrincipal(); mostrarEspera(miPerfil.rejected ? 'rechazada' : 'pendiente'); return; }
     if (!principalIniciado) iniciarPrincipal();
     else pintarMiPerfil();
-  }, (err) => { console.error(err); aviso(traducirError(err)); });
+  }, (err) => {
+    console.error(err);
+    mostrar('cargando');
+    $('#cargando p').textContent = 'No se pudo conectar con el servidor. Revisa tu internet y recarga la página.';
+  });
 });
 
 function nickDesdeCorreo(correo) {
